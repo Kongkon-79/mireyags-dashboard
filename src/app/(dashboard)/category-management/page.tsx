@@ -1,8 +1,11 @@
 import React from 'react'
+import CategoryContainer from './_components/category-container'
 
 const CategoryManagement = () => {
   return (
-    <div>CategoryManagement</div>
+    <div>
+      <CategoryContainer/>
+    </div>
   )
 }
 

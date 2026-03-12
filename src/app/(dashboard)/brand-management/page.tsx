@@ -1,8 +1,11 @@
 import React from 'react'
+import BrandsContainer from './_components/brand-container'
 
 const BrandManagement = () => {
   return (
-    <div>BrandManagement</div>
+    <div>
+      <BrandsContainer/>
+    </div>
   )
 }
 
