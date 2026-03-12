@@ -5,15 +5,28 @@ import Link from "next/link";
 import { Eye, Plus, SquarePen, Trash2 } from "lucide-react";
 
 // import { toast } from "sonner";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ProductsListApiResponse } from "./products-data-type";
 import { useState } from "react";
 import { useDebounce } from "@/hooks/useDebounce";
 import { Input } from "@/components/ui/input";
 import MireyagsPagination from "@/components/ui/mireyags-pagination";
+import DeleteModal from "@/components/modals/delete-modal";
+import { toast } from "sonner";
+import { useSession } from "next-auth/react";
+import { Product } from "../edit-product/[id]/_components/single-product-data-type";
+import SingleProductView from "./view-product";
 
 export default function ProductContainer() {
   const [currentPage, setCurrentPage] = useState(1);
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [selectedProductId, setSelectedProductId] = useState("");
+   const [selectViewProduct, setSelectViewProduct] = useState(false);
+    const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const queryClient = useQueryClient();
+
+    const { data: session } = useSession();
+    const token = (session?.user as { accessToken?: string })?.accessToken;
 
   const [search, setSearch] = useState("");
    const debouncedSearch = useDebounce(search, 500);
@@ -34,6 +47,41 @@ export default function ProductContainer() {
   // const totalPages = data?.meta
   //   ? Math.ceil(data.meta.total / data.meta.limit)
   //   : 0;
+
+
+
+    // delete Product api
+  const { mutate } = useMutation({
+    mutationKey: ["delete-product"],
+    mutationFn: async (id: string) => {
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_BACKEND_URL}/product/${id}`,
+        {
+          method: "DELETE",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+      return res.json();
+    },
+    onSuccess: (data) => {
+      if (!data?.success) {
+        toast.error(data?.message || "Something went wrong");
+        return;
+      }
+      toast.success(data?.message || "Product deleted successfully");
+      queryClient.invalidateQueries({ queryKey: ["all-products"] });
+    },
+  });
+
+   const handleDelete = () => {
+    if (selectedProductId) {
+      mutate(selectedProductId);
+    }
+    setDeleteModalOpen(false);
+  };
 
   console.log(data?.data);
   console.log(isLoading, isError, error);
@@ -122,13 +170,17 @@ export default function ProductContainer() {
                   <td className="px-4 py-4">
                     <div className="flex items-center justify-end gap-4">
                       <Link
-                        href={`/product-management/edit-product/${product._id}t`}
+                        href={`/product-management/edit-product/${product._id}`}
                         className="text-[#1E1E1E] transition hover:text-[#12B5D3]"
                       >
                         <SquarePen className="h-6 w-6 " />
                       </Link>
 
                       <button
+                        onClick={() => {
+                        setSelectViewProduct(true);
+                        setSelectedProduct(product);
+                      }}
                         type="button"
                         className="text-[#1E1E1E] transition hover:text-[#12B5D3]"
                       >
@@ -136,6 +188,10 @@ export default function ProductContainer() {
                       </button>
 
                       <button
+                       onClick={() => {
+                        setDeleteModalOpen(true);
+                        setSelectedProductId(product?._id)
+                      }}
                         type="button"
                         className="text-[#CE0000] transition hover:text-red-600"
                       >
@@ -176,6 +232,31 @@ export default function ProductContainer() {
             </div>
           )
         }
+
+        {/* delete modal  */}
+        <div>
+             {/* delete modal  */}
+        {deleteModalOpen && (
+          <DeleteModal
+            isOpen={deleteModalOpen}
+            onClose={() => setDeleteModalOpen(false)}
+            onConfirm={handleDelete}
+            title="Are You Sure?"
+            desc="Are you sure you want to delete this Product?"
+          />
+        )}
+        </div>
+
+         {/* Product view modal  */}
+        <div>
+          {selectViewProduct && (
+            <SingleProductView
+              open={selectViewProduct}
+              onOpenChange={(open: boolean) => setSelectViewProduct(open)}
+              productData={selectedProduct}
+            />
+          )}
+        </div>
         </div>
       </div>
     </div>

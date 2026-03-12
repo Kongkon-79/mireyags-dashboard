@@ -14,6 +14,7 @@ import {
   UploadCloud,
   X,
   RefreshCcw,
+  ArrowLeft,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -29,7 +30,9 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
+import { SingleProductApiResponse } from "./single-product-data-type";
+import Link from "next/link";
 
 const MAX_SUB_IMAGES = 4;
 const MAX_FILE_SIZE = 5 * 1024 * 1024;
@@ -69,29 +72,6 @@ const productSchema = z.object({
 });
 
 type ProductFormValues = z.infer<typeof productSchema>;
-
-type ProductDetailsResponse = {
-  status: boolean;
-  message: string;
-  data: {
-    _id: string;
-    name: string;
-    weight: string;
-    size: string[];
-    price: number;
-    offerPrice: number;
-    stock: number;
-    category: string | { _id: string; name?: string };
-    brand: string | { _id: string; name?: string };
-    description: string;
-    image: string;
-    subImages: string[];
-    averageRating?: number;
-    reviewCount?: number;
-    createdAt?: string;
-    updatedAt?: string;
-  };
-};
 
 type UpdateProductResponse = {
   status: boolean;
@@ -141,7 +121,9 @@ function parseSizes(input: string): string[] {
     .filter(Boolean);
 }
 
-function getIdValue(value: string | { _id: string; name?: string } | undefined) {
+function getIdValue(
+  value: string | { _id: string; name?: string } | undefined,
+) {
   if (!value) return "";
   return typeof value === "string" ? value : value._id;
 }
@@ -193,7 +175,9 @@ export default function EditProductForm({ id }: { id: string }) {
   const [existingMainImage, setExistingMainImage] = React.useState<string>("");
 
   const [newSubImages, setNewSubImages] = React.useState<PreviewFile[]>([]);
-  const [existingSubImages, setExistingSubImages] = React.useState<ExistingImage[]>([]);
+  const [existingSubImages, setExistingSubImages] = React.useState<
+    ExistingImage[]
+  >([]);
 
   const form = useForm<ProductFormValues>({
     resolver: zodResolver(productSchema),
@@ -210,37 +194,31 @@ export default function EditProductForm({ id }: { id: string }) {
     },
   });
 
+  // get product
+
   const {
     data: productData,
     isLoading,
     isError,
     refetch,
-  } = useQuery<ProductDetailsResponse>({
-    queryKey: ["product-details", id],
+  } = useQuery<SingleProductApiResponse>({
+    queryKey: ["single-product", id],
     queryFn: async () => {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/product/${id}`, {
-        method: "GET",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-        cache: "no-store",
-      });
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_BACKEND_URL}/product/${id}`,
+      );
 
-      const data: ProductDetailsResponse = await res.json();
-
-      if (!res.ok || !data.status) {
-        throw new Error(data.message || "Failed to fetch product");
-      }
-
-      return data;
+      return res.json();
     },
-    enabled: !!id && !!token,
+    enabled: !!id,
   });
 
-  React.useEffect(() => {
-    if (!productData?.data) return;
+  console.log(productData);
 
-    const product = productData.data;
+  React.useEffect(() => {
+    if (!productData?.data?.product) return;
+
+    const product = productData?.data?.product;
 
     form.reset({
       name: product.name || "",
@@ -258,7 +236,7 @@ export default function EditProductForm({ id }: { id: string }) {
     setExistingSubImages(
       Array.isArray(product.subImages)
         ? product.subImages.map((url) => ({ url }))
-        : []
+        : [],
     );
   }, [productData, form]);
 
@@ -305,17 +283,20 @@ export default function EditProductForm({ id }: { id: string }) {
       });
 
       formData.append(
-        "existingSubImages",
-        JSON.stringify(existingSubImages.map((item) => item.url))
+        "subImages",
+        JSON.stringify(existingSubImages.map((item) => item.url)),
       );
 
-      const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/product/${id}`, {
-        method: "PUT",
-        headers: {
-          Authorization: `Bearer ${token}`,
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_BACKEND_URL}/product/${id}`,
+        {
+          method: "PUT",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+          body: formData,
         },
-        body: formData,
-      });
+      );
 
       const data: UpdateProductResponse = await res.json();
 
@@ -338,7 +319,9 @@ export default function EditProductForm({ id }: { id: string }) {
       setNewSubImages([]);
 
       await queryClient.invalidateQueries({ queryKey: ["products"] });
-      await queryClient.invalidateQueries({ queryKey: ["product-details", id] });
+      await queryClient.invalidateQueries({
+        queryKey: ["product-details", id],
+      });
     },
     onError: (error) => {
       toast.error(error.message || "Update failed");
@@ -463,327 +446,333 @@ export default function EditProductForm({ id }: { id: string }) {
   const totalSelectedSubImages = existingSubImages.length + newSubImages.length;
 
   return (
-    <div className="mx-auto w-full max-w-5xl p-4 md:p-6">
-      <Card className="rounded-2xl shadow-sm">
-        <CardHeader>
-          <CardTitle className="text-2xl font-semibold">Edit Product</CardTitle>
-        </CardHeader>
+    <div className="bg-white p-6 rounded-[8px] border border-[#E4E4E4]">
+      <Link href="/product-management">
+        <button className="bg-primary flex items-center gap-2 text-lg font-normal text-white h-[40px] rounded-[8px] leading-normal  px-5">
+          <ArrowLeft /> Back
+        </button>
+      </Link>
+      <h4 className="text-lg md:text-xl lg:text-2xl text-[#4C4C4C] leading-normal font-semibold py-5">
+        Edit Product
+      </h4>
+      <Form {...form}>
+        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
+          <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+            <FormField
+              control={form.control}
+              name="name"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="text-lg font-medium text-[#1E1E1E] leading-normal">Product Name</FormLabel>
+                  <FormControl>
+                    <Input className="w-full h-[48px] text-base text-[#1E1E1E] leading-normal font-medium border border-[#CECECE] rounded-[8px] placeholder:text-[#CECECE]" placeholder="Enter product name" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
-        <CardContent>
-          <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
-              <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
-                <FormField
-                  control={form.control}
-                  name="name"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Product Name</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Enter product name" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+            <FormField
+              control={form.control}
+              name="weight"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="text-lg font-medium text-[#1E1E1E] leading-normal">Weight</FormLabel>
+                  <FormControl>
+                    <Input className="w-full h-[48px] text-base text-[#1E1E1E] leading-normal font-medium border border-[#CECECE] rounded-[8px] placeholder:text-[#CECECE]" placeholder="e.g. 1kg" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
-                <FormField
-                  control={form.control}
-                  name="weight"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Weight</FormLabel>
-                      <FormControl>
-                        <Input placeholder="e.g. 1kg" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+            <FormField
+              control={form.control}
+              name="price"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="text-lg font-medium text-[#1E1E1E] leading-normal">Price</FormLabel>
+                  <FormControl>
+                    <Input className="w-full h-[48px] text-base text-[#1E1E1E] leading-normal font-medium border border-[#CECECE] rounded-[8px] placeholder:text-[#CECECE]" type="number" placeholder="e.g. 120" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
-                <FormField
-                  control={form.control}
-                  name="price"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Price</FormLabel>
-                      <FormControl>
-                        <Input type="number" placeholder="e.g. 120" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+            <FormField
+              control={form.control}
+              name="offerPrice"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="text-lg font-medium text-[#1E1E1E] leading-normal">Offer Price</FormLabel>
+                  <FormControl>
+                    <Input className="w-full h-[48px] text-base text-[#1E1E1E] leading-normal font-medium border border-[#CECECE] rounded-[8px] placeholder:text-[#CECECE]" type="number" placeholder="e.g. 100" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
-                <FormField
-                  control={form.control}
-                  name="offerPrice"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Offer Price</FormLabel>
-                      <FormControl>
-                        <Input type="number" placeholder="e.g. 100" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+            <FormField
+              control={form.control}
+              name="stock"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="text-lg font-medium text-[#1E1E1E] leading-normal">Stock</FormLabel>
+                  <FormControl>
+                    <Input className="w-full h-[48px] text-base text-[#1E1E1E] leading-normal font-medium border border-[#CECECE] rounded-[8px] placeholder:text-[#CECECE]" type="number" placeholder="e.g. 50" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
-                <FormField
-                  control={form.control}
-                  name="stock"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Stock</FormLabel>
-                      <FormControl>
-                        <Input type="number" placeholder="e.g. 50" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+            <FormField
+              control={form.control}
+              name="sizesInput"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="text-lg font-medium text-[#1E1E1E] leading-normal">Sizes</FormLabel>
+                  <FormControl>
+                    <Input className="w-full h-[48px] text-base text-[#1E1E1E] leading-normal font-medium border border-[#CECECE] rounded-[8px] placeholder:text-[#CECECE]" placeholder="e.g. S, M, L" {...field} />
+                  </FormControl>
+                  <FormDescription>
+                    Comma separated sizes. Example: S, M, L
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
-                <FormField
-                  control={form.control}
-                  name="sizesInput"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Sizes</FormLabel>
-                      <FormControl>
-                        <Input placeholder="e.g. S, M, L" {...field} />
-                      </FormControl>
-                      <FormDescription>
-                        Comma separated sizes. Example: S, M, L
-                      </FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+            <FormField
+              control={form.control}
+              name="category"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="text-lg font-medium text-[#1E1E1E] leading-normal">Category ID</FormLabel>
+                  <FormControl>
+                    <Input className="w-full h-[48px] text-base text-[#1E1E1E] leading-normal font-medium border border-[#CECECE] rounded-[8px] placeholder:text-[#CECECE]" placeholder="Enter category id" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
-                <FormField
-                  control={form.control}
-                  name="category"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Category ID</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Enter category id" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+            <FormField
+              control={form.control}
+              name="brand"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="text-lg font-medium text-[#1E1E1E] leading-normal">Brand ID</FormLabel>
+                  <FormControl>
+                    <Input className="w-full h-[48px] text-base text-[#1E1E1E] leading-normal font-medium border border-[#CECECE] rounded-[8px] placeholder:text-[#CECECE]" placeholder="Enter brand id" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
 
-                <FormField
-                  control={form.control}
-                  name="brand"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Brand ID</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Enter brand id" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
+          <FormField
+            control={form.control}
+            name="description"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel className="text-lg font-medium text-[#1E1E1E] leading-normal">Description</FormLabel>
+                <FormControl>
+                  <Textarea
+                    placeholder="Write product description"
+                    className="w-full h-[120px] text-base text-[#1E1E1E] leading-normal font-medium border border-[#CECECE] rounded-[8px] placeholder:text-[#CECECE]"
+                    {...field}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
 
-              <FormField
-                control={form.control}
-                name="description"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Description</FormLabel>
-                    <FormControl>
-                      <Textarea
-                        placeholder="Write product description"
-                        className="min-h-[120px] resize-none"
-                        {...field}
+          <div className="space-y-6">
+            <div>
+              <h3 className="text-lg font-medium text-[#1E1E1E] leading-normal pb-3">Main Image</h3>
+
+              <div className="grid gap-4 lg:grid-cols-2">
+                <div className="rounded-2xl border bg-white p-3">
+                  <p className="text-lg font-medium text-[#1E1E1E] leading-normal mb-3">
+                    Current Image
+                  </p>
+
+                  {existingMainImage ? (
+                    <div className="relative h-[240px] w-full overflow-hidden rounded-xl bg-slate-100">
+                      <Image
+                        src={existingMainImage}
+                        alt="Current main image"
+                        fill
+                        className="object-cover"
                       />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+                    </div>
+                  ) : (
+                    <div className="flex h-[240px] items-center justify-center rounded-xl bg-slate-100 text-sm text-slate-500">
+                      No image found
+                    </div>
+                  )}
+                </div>
 
-              <div className="space-y-6">
                 <div>
-                  <h3 className="mb-3 text-base font-semibold">Main Image</h3>
-
-                  <div className="grid gap-4 lg:grid-cols-2">
+                  {!mainImage ? (
+                    <UploadBox
+                      title="Replace main product image"
+                      description="JPG, PNG, WEBP up to 5MB"
+                      onChange={handleMainImageChange}
+                    />
+                  ) : (
                     <div className="rounded-2xl border bg-white p-3">
                       <p className="mb-3 text-sm font-medium text-slate-700">
-                        Current Image
+                        New Selected Image
                       </p>
 
-                      {existingMainImage ? (
-                        <div className="relative h-[240px] w-full overflow-hidden rounded-xl bg-slate-100">
+                      <div className="relative h-[240px] w-full overflow-hidden rounded-xl bg-slate-100">
+                        <Image
+                          src={mainImage.preview}
+                          alt="New main preview"
+                          fill
+                          className="object-cover"
+                        />
+                      </div>
+
+                      <div className="mt-3 flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-2 text-sm text-slate-600">
+                          <ImagePlus className="h-4 w-4" />
+                          <span className="truncate">
+                            {mainImage.file.name}
+                          </span>
+                        </div>
+
+                        <Button
+                          type="button"
+                          variant="destructive"
+                          size="sm"
+                          onClick={removeMainImageSelection}
+                        >
+                          <Trash2 className="mr-2 h-4 w-4" />
+                          Remove
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <h3 className="text-lg font-medium text-[#1E1E1E] leading-normal">Sub Images</h3>
+                <p className="text-sm text-slate-500">
+                  {totalSelectedSubImages}/{MAX_SUB_IMAGES} selected
+                </p>
+              </div>
+
+              {totalSelectedSubImages < MAX_SUB_IMAGES && (
+                <div className="mb-4">
+                  <UploadBox
+                    title="Upload more sub images"
+                    description={`You can keep up to ${MAX_SUB_IMAGES} total images`}
+                    onChange={handleSubImagesChange}
+                    multiple
+                  />
+                </div>
+              )}
+
+              {existingSubImages.length > 0 && (
+                <div className="mb-6">
+                  <p className="text-lg font-medium text-[#1E1E1E] leading-normal mb-3">
+                    Current Sub Images
+                  </p>
+
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                    {existingSubImages.map((img, index) => (
+                      <div
+                        key={`${img.url}-${index}`}
+                        className="overflow-hidden rounded-2xl border bg-white p-2"
+                      >
+                        <div className="relative h-44 w-full overflow-hidden rounded-xl bg-slate-100">
                           <Image
-                            src={existingMainImage}
-                            alt="Current main image"
+                            src={img.url}
+                            alt={`Existing sub image ${index + 1}`}
                             fill
                             className="object-cover"
                           />
+                          <button
+                            type="button"
+                            onClick={() => removeExistingSubImage(index)}
+                            className="absolute right-2 top-2 rounded-full bg-black/70 p-1 text-white transition hover:bg-black"
+                          >
+                            <X className="h-4 w-4" />
+                          </button>
                         </div>
-                      ) : (
-                        <div className="flex h-[240px] items-center justify-center rounded-xl bg-slate-100 text-sm text-slate-500">
-                          No image found
-                        </div>
-                      )}
-                    </div>
-
-                    <div>
-                      {!mainImage ? (
-                        <UploadBox
-                          title="Replace main product image"
-                          description="JPG, PNG, WEBP up to 5MB"
-                          onChange={handleMainImageChange}
-                        />
-                      ) : (
-                        <div className="rounded-2xl border bg-white p-3">
-                          <p className="mb-3 text-sm font-medium text-slate-700">
-                            New Selected Image
-                          </p>
-
-                          <div className="relative h-[240px] w-full overflow-hidden rounded-xl bg-slate-100">
-                            <Image
-                              src={mainImage.preview}
-                              alt="New main preview"
-                              fill
-                              className="object-cover"
-                            />
-                          </div>
-
-                          <div className="mt-3 flex items-center justify-between gap-3">
-                            <div className="flex items-center gap-2 text-sm text-slate-600">
-                              <ImagePlus className="h-4 w-4" />
-                              <span className="truncate">{mainImage.file.name}</span>
-                            </div>
-
-                            <Button
-                              type="button"
-                              variant="destructive"
-                              size="sm"
-                              onClick={removeMainImageSelection}
-                            >
-                              <Trash2 className="mr-2 h-4 w-4" />
-                              Remove
-                            </Button>
-                          </div>
-                        </div>
-                      )}
-                    </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
+              )}
 
+              {newSubImages.length > 0 && (
                 <div>
-                  <div className="mb-3 flex items-center justify-between gap-3">
-                    <h3 className="text-base font-semibold">Sub Images</h3>
-                    <p className="text-sm text-slate-500">
-                      {totalSelectedSubImages}/{MAX_SUB_IMAGES} selected
-                    </p>
+                  <p className="mb-3 text-sm font-medium text-slate-700">
+                    New Sub Images
+                  </p>
+
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                    {newSubImages.map((img, index) => (
+                      <div
+                        key={`${img.file.name}-${index}`}
+                        className="overflow-hidden rounded-2xl border bg-white p-2"
+                      >
+                        <div className="relative h-44 w-full overflow-hidden rounded-xl bg-slate-100">
+                          <Image
+                            src={img.preview}
+                            alt={`New sub image ${index + 1}`}
+                            fill
+                            className="object-cover"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => removeNewSubImage(index)}
+                            className="absolute right-2 top-2 rounded-full bg-black/70 p-1 text-white transition hover:bg-black"
+                          >
+                            <X className="h-4 w-4" />
+                          </button>
+                        </div>
+
+                        <p className="mt-2 truncate text-sm text-slate-600">
+                          {img.file.name}
+                        </p>
+                      </div>
+                    ))}
                   </div>
-
-                  {totalSelectedSubImages < MAX_SUB_IMAGES && (
-                    <div className="mb-4">
-                      <UploadBox
-                        title="Upload more sub images"
-                        description={`You can keep up to ${MAX_SUB_IMAGES} total images`}
-                        onChange={handleSubImagesChange}
-                        multiple
-                      />
-                    </div>
-                  )}
-
-                  {existingSubImages.length > 0 && (
-                    <div className="mb-6">
-                      <p className="mb-3 text-sm font-medium text-slate-700">
-                        Current Sub Images
-                      </p>
-
-                      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                        {existingSubImages.map((img, index) => (
-                          <div
-                            key={`${img.url}-${index}`}
-                            className="overflow-hidden rounded-2xl border bg-white p-2"
-                          >
-                            <div className="relative h-44 w-full overflow-hidden rounded-xl bg-slate-100">
-                              <Image
-                                src={img.url}
-                                alt={`Existing sub image ${index + 1}`}
-                                fill
-                                className="object-cover"
-                              />
-                              <button
-                                type="button"
-                                onClick={() => removeExistingSubImage(index)}
-                                className="absolute right-2 top-2 rounded-full bg-black/70 p-1 text-white transition hover:bg-black"
-                              >
-                                <X className="h-4 w-4" />
-                              </button>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {newSubImages.length > 0 && (
-                    <div>
-                      <p className="mb-3 text-sm font-medium text-slate-700">
-                        New Sub Images
-                      </p>
-
-                      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                        {newSubImages.map((img, index) => (
-                          <div
-                            key={`${img.file.name}-${index}`}
-                            className="overflow-hidden rounded-2xl border bg-white p-2"
-                          >
-                            <div className="relative h-44 w-full overflow-hidden rounded-xl bg-slate-100">
-                              <Image
-                                src={img.preview}
-                                alt={`New sub image ${index + 1}`}
-                                fill
-                                className="object-cover"
-                              />
-                              <button
-                                type="button"
-                                onClick={() => removeNewSubImage(index)}
-                                className="absolute right-2 top-2 rounded-full bg-black/70 p-1 text-white transition hover:bg-black"
-                              >
-                                <X className="h-4 w-4" />
-                              </button>
-                            </div>
-
-                            <p className="mt-2 truncate text-sm text-slate-600">
-                              {img.file.name}
-                            </p>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
                 </div>
-              </div>
+              )}
+            </div>
+          </div>
 
-              <div className="flex justify-end">
-                <Button type="submit" disabled={isPending} className="min-w-[160px]">
-                  {isPending ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Updating...
-                    </>
-                  ) : (
-                    "Update Product"
-                  )}
-                </Button>
-              </div>
-            </form>
-          </Form>
-        </CardContent>
-      </Card>
+         <div className="flex justify-center items-center pb-20">
+            <Button
+              type="submit"
+              disabled={isPending}
+              className="text-lg font-normal text-white h-[44px] rounded-[8px] leading-normal  px-14"
+            >
+              {isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Updating...
+                </>
+              ) : (
+                "Update Product"
+              )}
+            </Button>
+          </div>
+        </form>
+      </Form>
     </div>
   );
 }
