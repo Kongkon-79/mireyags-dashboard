@@ -27,6 +27,7 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
+import { useRouter } from "next/navigation";
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024;
 
@@ -112,6 +113,7 @@ export default function AddCategoryForm() {
   const queryClient = useQueryClient();
   const { data: session } = useSession();
   const token = (session?.user as { accessToken?: string })?.accessToken;
+  const router = useRouter();
 
   const [image, setImage] = React.useState<PreviewFile | null>(null);
 
@@ -161,6 +163,7 @@ export default function AddCategoryForm() {
       toast.success(data.message || "Category created successfully");
 
       form.reset();
+      router.push("/category-management")
 
       if (image) {
         URL.revokeObjectURL(image.preview);

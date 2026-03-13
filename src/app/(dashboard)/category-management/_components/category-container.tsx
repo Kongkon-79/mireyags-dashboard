@@ -150,7 +150,7 @@ export default function CategoryContainer() {
                         href={`/category-management/edit-category/${category._id}`}
                         className="text-[#1E1E1E] transition hover:text-[#12B5D3]"
                       >
-                        <SquarePen className="h-6 w-6 " />
+                        <SquarePen className="h-6 w-6 text-primary" />
                       </Link>
 
                       <button

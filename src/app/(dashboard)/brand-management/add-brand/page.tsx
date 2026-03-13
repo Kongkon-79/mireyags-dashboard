@@ -3,7 +3,7 @@ import AddBrandForm from './_components/add-brand-form'
 
 const AddBrandPage = () => {
   return (
-    <div>
+    <div className='p-6'>
         <AddBrandForm/>
     </div>
   )

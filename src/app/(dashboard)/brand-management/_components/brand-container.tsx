@@ -138,7 +138,7 @@ export default function BrandsContainer() {
                         href={`/brand-management/edit-brand/${brand._id}`}
                         className="text-[#1E1E1E] transition hover:text-[#12B5D3]"
                       >
-                        <SquarePen className="h-6 w-6 " />
+                        <SquarePen className="h-6 w-6 text-primary" />
                       </Link>
 
                       <button
@@ -196,7 +196,7 @@ export default function BrandsContainer() {
             onClose={() => setDeleteModalOpen(false)}
             onConfirm={handleDelete}
             title="Are You Sure?"
-            desc="Are you sure you want to delete this Category?"
+            desc="Are you sure you want to delete this Brand?"
           />
         )}
         </div>

@@ -173,7 +173,7 @@ export default function ProductContainer() {
                         href={`/product-management/edit-product/${product._id}`}
                         className="text-[#1E1E1E] transition hover:text-[#12B5D3]"
                       >
-                        <SquarePen className="h-6 w-6 " />
+                        <SquarePen className="h-6 w-6 text-primary" />
                       </Link>
 
                       <button
@@ -184,7 +184,7 @@ export default function ProductContainer() {
                         type="button"
                         className="text-[#1E1E1E] transition hover:text-[#12B5D3]"
                       >
-                        <Eye className="h-6 w-6" />
+                        <Eye className="h-6 w-6 text-primary" />
                       </button>
 
                       <button

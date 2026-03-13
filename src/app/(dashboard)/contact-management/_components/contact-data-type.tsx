@@ -5,7 +5,7 @@ export interface Contact {
   email: string;
   phone: string;
   message: string;
-  status: "unread" | "read";
+  status: "unread" | "read" | string;
   createdAt: string;
   updatedAt: string;
   __v: number;

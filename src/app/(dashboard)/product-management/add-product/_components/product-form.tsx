@@ -23,6 +23,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 const MAX_SUB_IMAGES = 4;
 const MAX_FILE_SIZE = 5 * 1024 * 1024;
@@ -150,7 +151,7 @@ function UploadBox({
 
 export default function ProductForm() {
   const queryClient = useQueryClient();
-
+const router = useRouter();
   const { data: session } = useSession();
   const token = (session?.user as { accessToken?: string })?.accessToken;
 
@@ -230,6 +231,7 @@ export default function ProductForm() {
       toast.success(data.message || "Product created successfully");
 
       form.reset();
+      router.push("/product-management")
 
       if (mainImage) {
         URL.revokeObjectURL(mainImage.preview);

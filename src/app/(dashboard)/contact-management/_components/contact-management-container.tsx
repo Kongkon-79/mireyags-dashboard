@@ -1,156 +1,56 @@
 "use client";
-import React, { useState } from "react";
 
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import DeleteModal from "@/components/modals/delete-modal";
-import { Trash, Eye } from "lucide-react";
-import ContactManagementView from "./contact-management-view";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useSession } from "next-auth/react";
+import { useState } from "react";
 import moment from "moment";
-import TableSkeletonWrapper from "@/components/shared/TableSkeletonWrapper/TableSkeletonWrapper";
-import ErrorContainer from "@/components/shared/ErrorContainer/ErrorContainer";
-import NotFound from "@/components/shared/NotFound/NotFound";
+import { useSession } from "next-auth/react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Trash2, Eye } from "lucide-react";
 import { toast } from "sonner";
-import { Contact, ContactsApiResponse } from "./contact-data-type";
 
-const ContactManagementContainer = () => {
-  const [currentPage] = useState(1);
-  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+import { Input } from "@/components/ui/input";
+import MireyagsPagination from "@/components/ui/mireyags-pagination";
+import DeleteModal from "@/components/modals/delete-modal";
+import { useDebounce } from "@/hooks/useDebounce";
+import { Contact, ContactsApiResponse } from "./contact-data-type";
+import ContactManagementView from "./contact-management-view";
+
+export default function ContactUsContainer() {
+  const [currentPage, setCurrentPage] = useState(1);
+  const [search, setSearch] = useState("");
+
   const [selectViewContact, setSelectViewContact] = useState(false);
-  const session = useSession();
-  const token = (session?.data?.user as { accessToken: string })?.accessToken;
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
-  const [selectedContactId, setSelectedContactId] = useState("");
+
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [selectedId, setSelectedId] = useState("");
+
+  const debouncedSearch = useDebounce(search, 500);
   const queryClient = useQueryClient();
 
+  const { data: session } = useSession();
+  const token = (session?.user as { accessToken?: string })?.accessToken;
 
-
-  const { data, isLoading, error, isError } = useQuery<ContactsApiResponse>({
-    queryKey: ["contact-management", currentPage],
+  const { data, isLoading, isError } = useQuery<ContactsApiResponse>({
+    queryKey: ["contacts", debouncedSearch, currentPage],
     queryFn: async () => {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/contact?page=${currentPage}&limit=8`, {
-        method: "GET",
-        headers: {
-          Authorization: `Bearer ${token}`
-        }
-      })
-      return res.json()
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_BACKEND_URL}/contact?page=${currentPage}&limit=10&search=${debouncedSearch}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        },
+      );
+
+      return res.json();
     },
-    enabled: !!token
-  })
+  });
 
-  // const totalPages = data?.meta ? Math.ceil(data.meta.total / data.meta.limit) : 0;
+  console.log(isLoading, isError);
 
+  const contacts = data?.data?.items ?? [];
 
-
- let content;
-
-
-  if (isLoading) {
-    content = (
-      <div>
-        <TableSkeletonWrapper count={5} />
-      </div>
-    );
-  } else if (isError) {
-    content = (
-      <div>
-        <ErrorContainer message={error?.message || "Something went wrong"} />
-      </div>
-    );
-  } else if (
-    data &&
-    data?.data &&
-    data?.data?.items &&
-    data?.data?.items?.length === 0
-  ) {
-    content = (
-      <div>
-        <NotFound message="Oops! No data available. Modify your filters or check your internet connection." />
-      </div>
-    );
-  }
-  else if (data && data?.data && data?.data?.items && data?.data?.items?.length > 0){
-    content = (
-        <Table className="">
-          <TableHeader className="bg-[#E6F4E6] rounded-t-[12px]">
-            <TableRow className="">
-              <TableHead className="text-sm font-normal leading-[150%] text-[#343A40] py-4 pl-6">
-                Email Address
-              </TableHead>
-              <TableHead className="text-sm font-normal leading-[150%] text-[#343A40] text-center py-4 ">
-                Name
-              </TableHead>
-              <TableHead className="text-sm font-normal leading-[150%] text-[#343A40] text-center py-4 ">
-                Phone Number
-              </TableHead>
-              <TableHead className="text-sm font-normal leading-[150%] text-[#343A40] text-center py-4 ">
-                Message
-              </TableHead>
-              <TableHead className="text-sm font-normal leading-[150%] text-[#343A40] text-center py-4 ">
-                Date
-              </TableHead>
-              <TableHead className="text-sm font-normal leading-[150%] text-[#343A40] text-center py-4">
-                Action
-              </TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody className="border-b border-x border-[#E6E7E6] rounded-b-[12px]">
-            {data?.data?.items?.map((item, index) => {
-              return (
-                <TableRow key={index} className="">
-                  <TableCell className="text-base font-medium text-[#68706A] leading-[150%] pl-6 py-4">
-                    {item?.email}
-                  </TableCell>
-                  <TableCell className="text-base font-normal text-[#68706A] leading-[150%] text-center py-4">
-                    {item?.name}
-                  </TableCell>
-                  <TableCell className="text-base font-normal text-[#68706A] leading-[150%] text-center py-4">
-                    {item?.phone}
-                  </TableCell>
-                  <TableCell className="w-[395px] text-base font-normal text-[#68706A] leading-[150%] text-center py-4">
-                    {item?.message}
-                  </TableCell>
-                  <TableCell className="text-base font-medium text-[#343A40] leading-[150%] text-center py-4">
-                    {moment(item?.createdAt).format("MMM DD YYYY")}
-                  </TableCell>
-                  <TableCell className="h-full flex items-center justify-center gap-6 py-4">
-                    <button
-                      onClick={() => {
-                        setSelectViewContact(true);
-                        setSelectedContact(item);
-                      }}
-                      className="cursor-pointer mt-2"
-                    >
-                      <Eye className="h-6 w-6" />
-                    </button>
-                    <button
-                      onClick={() => {
-                        setDeleteModalOpen(true);
-                        setSelectedContactId(item?._id)
-                      }}
-                      className="cursor-pointer mt-2"
-                    >
-                      <Trash className="h-6 w-6 text-red-500" />
-                    </button>
-                  </TableCell>
-                </TableRow>
-              );
-            })}
-          </TableBody>
-        </Table>
-    )
-  }
-
-    // delete contact api
+  /* delete contact */
   const { mutate } = useMutation({
     mutationKey: ["delete-contact"],
     mutationFn: async (id: string) => {
@@ -159,79 +59,176 @@ const ContactManagementContainer = () => {
         {
           method: "DELETE",
           headers: {
-            "Content-Type": "application/json",
             Authorization: `Bearer ${token}`,
           },
-        }
+        },
       );
+
       return res.json();
     },
     onSuccess: (data) => {
-      if (!data?.success) {
+      if (!data?.status) {
         toast.error(data?.message || "Something went wrong");
         return;
       }
+
       toast.success(data?.message || "Contact deleted successfully");
-      queryClient.invalidateQueries({ queryKey: ["contact-management"] });
+
+      queryClient.invalidateQueries({ queryKey: ["contacts"] });
     },
   });
 
   const handleDelete = () => {
-    if (selectedContactId) {
-      mutate(selectedContactId);
+    if (selectedId) {
+      mutate(selectedId);
     }
+
     setDeleteModalOpen(false);
   };
+
   return (
-    <div>
-      {/* table container */}
-      <div className="p-6 space-y-6">
+    <div className="p-4 md:p-6">
+      <div className="bg-white rounded-[8px] border border-[#E4E4E4] p-6">
+        <div className="flex items-center justify-between pb-5">
+          <h4 className="text-lg md:text-xl lg:text-2xl font-semibold text-[#252471]">
+            Contact Messages
+          </h4>
 
-        {/* table  */}
-      <div>{content}</div>
+          <Input
+            type="search"
+            className="w-[297px] h-[44px] px-3 rounded-[8px] border border-[#969B9C]"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search"
+          />
+        </div>
 
-        {/* pagination  */}
-        {/* {
-          totalPages > 1 && (
-            <div className="w-full flex items-center justify-between py-6">
-              <p className="text-base font-normal text-[#68706A] leading-[150%]">
-                Showing {currentPage} to 8 of {data?.meta?.total} results
-              </p>
-              <div>
-                <ClaudePagination
+        <div className="overflow-x-auto">
+          <table className="min-w-full">
+            <thead className="border-b bg-[#F8F9FA]">
+              <tr>
+                <th className="px-4 py-4 text-left text-base font-semibold text-[#3B3B3B]">
+                  Name
+                </th>
+                <th className="px-4 py-4 text-left text-base font-semibold text-[#3B3B3B]">
+                  Email
+                </th>
+                <th className="px-4 py-4 text-left text-base font-semibold text-[#3B3B3B]">
+                  Phone
+                </th>
+                <th className="px-4 py-4 text-left text-base font-semibold text-[#3B3B3B]">
+                  Message
+                </th>
+                <th className="px-4 py-4 text-center text-base font-semibold text-[#3B3B3B]">
+                  Created Date
+                </th>
+                <th className="px-4 py-4 text-right text-base font-semibold text-[#3B3B3B]">
+                  Action
+                </th>
+              </tr>
+            </thead>
+
+            <tbody>
+              {contacts?.map((contact) => (
+                <tr key={contact._id} className="border-b hover:bg-[#FCFCFD]">
+                  <td className="px-4 py-4 text-sm font-medium">
+                    {contact.name}
+                  </td>
+
+                  <td className="px-4 py-4 text-sm">{contact.email}</td>
+
+                  <td className="px-4 py-4 text-sm">{contact.phone}</td>
+
+                  <td className="px-4 py-4 text-sm max-w-[300px] truncate">
+                    {contact.message}
+                  </td>
+
+                  <td className="px-4 py-4 text-sm text-center">
+                    {moment(contact.createdAt).format("DD/MM/YYYY")}
+                  </td>
+
+                  <td className="px-4 py-4">
+                    <div className="flex justify-end gap-4">
+                      {/* view */}
+                      <button
+                        className="text-[#12B5D3]"
+                        onClick={() => {
+                          setSelectViewContact(true);
+                          setSelectedContact(contact);
+                        }}
+                      >
+                        <Eye className="w-5 h-5" />
+                      </button>
+
+                      {/* delete */}
+                      <button
+                        onClick={() => {
+                          setDeleteModalOpen(true);
+                          setSelectedId(contact._id);
+                        }}
+                        className="text-red-600"
+                      >
+                        <Trash2 className="w-5 h-5" />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+
+              {!contacts?.length && (
+                <tr>
+                  <td colSpan={6} className="text-center py-10 text-[#6C757D]">
+                    No contacts found.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+
+          {/* pagination */}
+
+          {data &&
+            data?.data &&
+            data?.data?.paginationInfo &&
+            data?.data?.paginationInfo?.totalPages > 1 && (
+              <div className="flex justify-between items-center py-4">
+                <p className="text-[#68706A]">
+                  Showing {currentPage} of{" "}
+                  {data?.data?.paginationInfo?.totalPages}
+                </p>
+
+                <MireyagsPagination
                   currentPage={currentPage}
-                  totalPages={totalPages}
+                  totalPages={data?.data?.paginationInfo?.totalPages}
                   onPageChange={(page) => setCurrentPage(page)}
                 />
               </div>
-            </div>
-          )
-        } */}
+            )}
 
-        {/* delete modal  */}
-        {deleteModalOpen && (
-          <DeleteModal
-            isOpen={deleteModalOpen}
-            onClose={() => setDeleteModalOpen(false)}
-            onConfirm={handleDelete}
-            title="Are You Sure?"
-            desc="Are you sure you want to delete this match?"
-          />
-        )}
+          {/* delete modal */}
 
-        {/* contact view modal  */}
-        <div>
-          {selectViewContact && (
-            <ContactManagementView
-              open={selectViewContact}
-              onOpenChange={(open: boolean) => setSelectViewContact(open)}
-              contactData={selectedContact}
+          {deleteModalOpen && (
+            <DeleteModal
+              isOpen={deleteModalOpen}
+              onClose={() => setDeleteModalOpen(false)}
+              onConfirm={handleDelete}
+              title="Are You Sure?"
+              desc="Are you sure you want to delete this Contact?"
             />
           )}
+
+          {/* Product view modal  */}
+          <div>
+            {selectViewContact && (
+              <ContactManagementView
+                open={selectViewContact}
+                onOpenChange={(open: boolean) => setSelectViewContact(open)}
+                contactData={selectedContact}
+              />
+            )}
+          </div>
         </div>
       </div>
     </div>
   );
-};
-
-export default ContactManagementContainer;
+}
