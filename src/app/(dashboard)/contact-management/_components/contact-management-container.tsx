@@ -217,7 +217,7 @@ export default function ContactUsContainer() {
             />
           )}
 
-          {/* Product view modal  */}
+          {/* contact view modal  */}
           <div>
             {selectViewContact && (
               <ContactManagementView
