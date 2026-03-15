@@ -119,7 +119,7 @@ export function DashboardSidebar() {
                     return (
                       <SidebarMenuItem key={item.title}  className=" pb-1">
                         <SidebarMenuButton
-                          className={`h-[50px] rounded-none bg-transparent text-xl text-[#565656] hover:bg-[#f8f9fa] hover:text-primary transition-all duration-300 ${
+                          className={`h-[50px] rounded-none bg-transparent text-xl text-[#565656] hover:bg-primary hover:text-white hover:rounded-[12px] transition-all duration-300 ${
                             isActive &&
                             "bg-primary text-white shadow-[0px_8px_30px_0px_#00000029] font-semibold rounded-[12px]"
                           }`}

@@ -5,6 +5,7 @@ import AuthProvider from "@/components/providers/AuthProvider";
 import AppProvider from "@/components/providers/AppProvider";
 
 import { Manrope } from "next/font/google";
+import NextTopLoader from 'nextjs-toploader'
 
 const manrope = Manrope({
   subsets: ["latin"],
@@ -22,6 +23,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" className={manrope.className}>
       <body className={`font-manrope antialiased`}>
+        <NextTopLoader color="#00B6E0" height={3} showSpinner={false}  />
         <AuthProvider>
           <AppProvider>
 
