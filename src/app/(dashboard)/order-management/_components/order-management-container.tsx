@@ -1,34 +1,66 @@
 "use client";
 
 import Image from "next/image";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { useDebounce } from "@/hooks/useDebounce";
 import { Input } from "@/components/ui/input";
 import MireyagsPagination from "@/components/ui/mireyags-pagination";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 import { Eye } from "lucide-react";
 import { useSession } from "next-auth/react";
+import { toast } from "sonner";
 
 import noUser from "../../../../../public/assets/images/no-user.jpeg";
 import { Order, OrdersApiResponse } from "./order-management-data-type";
 import OrderManagementView from "./order-management-view";
 
+const ORDER_STATUS_OPTIONS = [
+  "placed",
+  "processing",
+  "shipped",
+  "delivered",
+  "cancelled",
+];
+
 export default function OrderManagementContainer() {
   const [currentPage, setCurrentPage] = useState(1);
   const [selectViewOrder, setSelectViewOrder] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const [updatingOrderId, setUpdatingOrderId] = useState<string | null>(null);
+  const [selectedStatus, setSelectedStatus] = useState("all");
 
   const { data: session } = useSession();
   const token = (session?.user as { accessToken?: string })?.accessToken;
+  const queryClient = useQueryClient();
 
   const [search, setSearch] = useState("");
   const debouncedSearch = useDebounce(search, 500);
   const { data, isLoading, isError, error } = useQuery<OrdersApiResponse>({
-    queryKey: ["all-orders", debouncedSearch, currentPage],
+    queryKey: ["all-orders", debouncedSearch, selectedStatus, currentPage],
     queryFn: async () => {
+      const params = new URLSearchParams({
+        page: String(currentPage),
+        limit: "6",
+      });
+
+      if (debouncedSearch) {
+        params.append("search", debouncedSearch);
+      }
+
+      if (selectedStatus !== "all") {
+        params.append("orderStatus", selectedStatus);
+      }
+
       const res = await fetch(
-        `${process.env.NEXT_PUBLIC_BACKEND_URL}/order?page=${currentPage}&limit=6&search=${debouncedSearch}`,
+        `${process.env.NEXT_PUBLIC_BACKEND_URL}/order?${params.toString()}`,
         {
           method: "GET",
           headers: {
@@ -39,9 +71,120 @@ export default function OrderManagementContainer() {
 
       return res.json();
     },
+    enabled: !!token,
   });
 
   const orders = data?.data?.data;
+
+
+
+  // order status
+
+  const { mutate: updateOrderStatus } = useMutation({
+    mutationKey: ["update-order-status"],
+    mutationFn: async ({
+      id,
+      orderStatus,
+    }: {
+      id: string;
+      orderStatus: string;
+    }) => {
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_BACKEND_URL}/order/${id}`,
+        {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ orderStatus }),
+        },
+      );
+
+      return res.json();
+    },
+    onMutate: async ({
+      id,
+      orderStatus,
+    }: {
+      id: string;
+      orderStatus: string;
+    }) => {
+      await queryClient.cancelQueries({ queryKey: ["all-orders"] });
+
+      const previousOrders = queryClient.getQueriesData<OrdersApiResponse>({
+        queryKey: ["all-orders"],
+      });
+
+      queryClient.setQueriesData<OrdersApiResponse>(
+        { queryKey: ["all-orders"] },
+        (oldData) => {
+          if (!oldData?.data?.data) return oldData;
+
+          return {
+            ...oldData,
+            data: {
+              ...oldData.data,
+              data: oldData.data.data.map((order) =>
+                order._id === id ? { ...order, orderStatus } : order,
+              ),
+            },
+          };
+        },
+      );
+
+      if (selectedOrder?._id === id) {
+        setSelectedOrder((prev) =>
+          prev ? { ...prev, orderStatus } : prev,
+        );
+      }
+
+      return { previousOrders };
+    },
+    onSuccess: (
+      data,
+      variables,
+      context?: {
+        previousOrders?: [readonly unknown[], OrdersApiResponse | undefined][];
+      },
+    ) => {
+      if (!data?.status) {
+        context?.previousOrders?.forEach(([queryKey, previousData]) => {
+          queryClient.setQueryData(queryKey, previousData);
+        });
+
+        const previousOrder = context?.previousOrders
+          ?.flatMap(([, previousData]) => previousData?.data?.data ?? [])
+          ?.find((order) => order._id === variables.id);
+
+        if (previousOrder) {
+          setSelectedOrder(previousOrder);
+        }
+
+        toast.error(data?.message || "Failed to update order status");
+        return;
+      }
+
+      toast.success(data?.message || "Order status updated");
+      queryClient.invalidateQueries({ queryKey: ["all-orders"] });
+    },
+    onError: (
+      _error,
+      _variables,
+      context?: {
+        previousOrders?: [readonly unknown[], OrdersApiResponse | undefined][];
+      },
+    ) => {
+      context?.previousOrders?.forEach(([queryKey, previousData]) => {
+        queryClient.setQueryData(queryKey, previousData);
+      });
+
+      toast.error("Failed to update order status");
+    },
+    onSettled: () => {
+      setUpdatingOrderId(null);
+    },
+  });
 
   console.log(data?.data);
   console.log(isLoading, isError, error);
@@ -53,16 +196,44 @@ export default function OrderManagementContainer() {
           <h4 className="text-lg md:text-xl lg:text-2xl font-semibold text-[#252471] leading-normal">
             Orders
           </h4>
-          <div className="flex items-center gap-5">
+          <div className="flex items-center gap-3">
             {/* search  */}
             <div>
               <Input
                 type="search"
                 className="w-full  md:w-[297px] h-[44px] px-3 rounded-[8px] bg-transparent placeholder:text-[#929292] border border-[#969B9C]"
                 value={search}
-                onChange={(e) => setSearch(e.target.value)}
+                onChange={(e) => {
+                  setSearch(e.target.value);
+                  setCurrentPage(1);
+                }}
                 placeholder="Search"
               />
+            </div>
+            <div>
+              <Select
+                value={selectedStatus}
+                onValueChange={(value) => {
+                  setSelectedStatus(value);
+                  setCurrentPage(1);
+                }}
+              >
+                <SelectTrigger className="h-[44px] w-[120px] rounded-[8px] border border-[#969B9C] bg-white text-sm text-[#525252]">
+                  <SelectValue placeholder="Status" />
+                </SelectTrigger>
+                <SelectContent className="bg-white">
+                  <SelectItem value="all">All</SelectItem>
+                  {ORDER_STATUS_OPTIONS.map((status) => (
+                    <SelectItem
+                      key={status}
+                      value={status}
+                      className="capitalize"
+                    >
+                      {status}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
         </div>
@@ -149,8 +320,35 @@ export default function OrderManagementContainer() {
                   <td className="px-4 py-4 text-sm text-center font-medium text-[#242424] leading-normal capitalize">
                     $ {order?.totalAmount}
                   </td>
-                  <td className="px-4 py-4 text-sm text-center font-medium text-[#242424] leading-normal capitalize">
-                    {order?.payment?.paymentStatus}
+                  <td className="px-4 py-4 text-center">
+                    <Select
+                      value={order?.orderStatus}
+                      onValueChange={(value) => {
+                        if (value === order?.orderStatus) return;
+
+                        setUpdatingOrderId(order._id);
+                        updateOrderStatus({
+                          id: order._id,
+                          orderStatus: value,
+                        });
+                      }}
+                      disabled={updatingOrderId === order._id}
+                    >
+                      <SelectTrigger className="mx-auto h-9 w-[120px] border border-[#D0D5DD] bg-white rounded-[12px] text-sm font-medium capitalize">
+                        <SelectValue placeholder="Select status" />
+                      </SelectTrigger>
+                      <SelectContent className="bg-white">
+                        {ORDER_STATUS_OPTIONS?.map((status) => (
+                          <SelectItem
+                            key={status}
+                            value={status}
+                            className="capitalize"
+                          >
+                            {status}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </td>
 
                   <td className="px-4 py-4">

@@ -44,6 +44,7 @@ export default function ContactUsContainer() {
 
       return res.json();
     },
+    enabled: !!token
   });
 
   console.log(isLoading, isError);
