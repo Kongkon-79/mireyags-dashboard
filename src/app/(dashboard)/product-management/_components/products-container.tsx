@@ -16,6 +16,8 @@ import { toast } from "sonner";
 import { useSession } from "next-auth/react";
 import { Product } from "../edit-product/[id]/_components/single-product-data-type";
 import SingleProductView from "./view-product";
+import ProductsTableSkeleton from "./products-table-skeleton";
+import ProductsErrorContainer from "./products-error-container";
 
 export default function ProductContainer() {
   const [currentPage, setCurrentPage] = useState(1);
@@ -30,13 +32,17 @@ export default function ProductContainer() {
 
   const [search, setSearch] = useState("");
    const debouncedSearch = useDebounce(search, 500);
-  const { data, isLoading, isError, error } = useQuery<ProductsListApiResponse>(
+  const { data, isLoading, isError, error, refetch } = useQuery<ProductsListApiResponse>(
     {
       queryKey: ["all-products", debouncedSearch, currentPage],
       queryFn: async () => {
         const res = await fetch(
           `${process.env.NEXT_PUBLIC_BACKEND_URL}/product/get-all-products?page=${currentPage}&limit=6&search=${debouncedSearch}`,
         );
+
+        if (!res.ok) {
+          throw new Error("We couldn't load the products right now. Please try again.");
+        }
 
         return res.json();
       },
@@ -84,7 +90,144 @@ export default function ProductContainer() {
   };
 
   console.log(data?.data);
-  console.log(isLoading, isError, error);
+
+  let tableContent;
+
+  if (isLoading) {
+    tableContent = <ProductsTableSkeleton />;
+  } else if (isError) {
+    tableContent = (
+      <ProductsErrorContainer
+        message={(error as Error)?.message || "Something went wrong"}
+        onRetry={() => refetch()}
+      />
+    );
+  } else {
+    tableContent = (
+      <>
+        <table className="min-w-full">
+          <thead className="border-b bg-[#F8F9FA]">
+            <tr>
+              <th className="px-4 py-4 text-left text-base font-semibold text-[#3B3B3B] leading-normal">
+                Products
+              </th>
+              <th className="px-4 py-4 text-center text-base font-semibold text-[#3B3B3B] leading-normal">
+                Categories
+              </th>
+              <th className="px-4 py-4 text-center text-base font-semibold text-[#3B3B3B] leading-normal">
+                Price
+              </th>
+              <th className="px-4 py-4 text-center text-base font-semibold text-[#3B3B3B] leading-normal">
+                Stock
+              </th>
+              <th className="px-4 py-4 text-right text-base font-semibold text-[#3B3B3B] leading-normal">
+                Action
+              </th>
+            </tr>
+          </thead>
+
+          <tbody>
+            {products?.map((product) => (
+              <tr
+                key={product._id}
+                className="border-b last:border-b-0 hover:bg-[#FCFCFD]"
+              >
+                <td className="px-4 py-4">
+                  <div className="flex items-center gap-3">
+                    <div className="relative h-12 w-12 overflow-hidden rounded-md border bg-white">
+                      <Image
+                        src={product.image}
+                        alt={product.name}
+                        fill
+                        className="object-cover rounded-[4px]"
+                      />
+                    </div>
+                    <p className="text-sm font-medium text-[#242424] leading-normal">
+                      {product.name}
+                    </p>
+                  </div>
+                </td>
+
+                <td className="px-4 py-4 text-sm text-center font-medium text-[#242424] leading-normal capitalize">
+                  {product.category.name}
+                </td>
+
+                <td className="px-4 py-4 text-sm text-center font-medium text-[#242424] leading-normal">
+                  ${product.price}
+                </td>
+
+                <td className="px-4 py-4 text-sm font-medium text-[#242424] leading-normal text-center">
+                  {product.stock}
+                </td>
+
+                <td className="px-4 py-4">
+                  <div className="flex items-center justify-end gap-4">
+                    <Link
+                      href={`/product-management/edit-product/${product._id}`}
+                      className="text-[#1E1E1E] transition hover:text-[#12B5D3]"
+                    >
+                      <SquarePen className="h-6 w-6 text-primary" />
+                    </Link>
+
+                    <button
+                      onClick={() => {
+                        setSelectViewProduct(true);
+                        setSelectedProduct(product);
+                      }}
+                      type="button"
+                      className="text-[#1E1E1E] transition hover:text-[#12B5D3]"
+                    >
+                      <Eye className="h-6 w-6 text-primary" />
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        setDeleteModalOpen(true);
+                        setSelectedProductId(product?._id);
+                      }}
+                      type="button"
+                      className="text-[#CE0000] transition hover:text-red-600"
+                    >
+                      <Trash2 className="h-6 w-6" />
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+
+            {!products?.length && (
+              <tr>
+                <td
+                  colSpan={5}
+                  className="px-4 py-10 text-center text-sm text-[#6C757D]"
+                >
+                  No products found.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+
+        {data &&
+          data?.data &&
+          data?.data?.pagination &&
+          data?.data?.pagination?.totalPages > 1 && (
+            <div className="w-full flex items-center justify-between py-2">
+              <p className="text-base font-normal text-[#68706A] leading-[150%]">
+                Showing {currentPage} to 6 of {data?.data?.pagination?.totalData} results
+              </p>
+              <div>
+                <MireyagsPagination
+                  currentPage={currentPage}
+                  totalPages={data?.data?.pagination?.totalPages}
+                  onPageChange={(page) => setCurrentPage(page)}
+                />
+              </div>
+            </div>
+          )}
+      </>
+    );
+  }
 
   return (
     <div className="p-4 md:p-6">
@@ -112,126 +255,7 @@ export default function ProductContainer() {
           </div>
 
         <div className="overflow-x-auto">
-          <table className="min-w-full">
-            <thead className="border-b bg-[#F8F9FA]">
-              <tr>
-                <th className="px-4 py-4 text-left text-base font-semibold text-[#3B3B3B] leading-normal">
-                  Products
-                </th>
-                <th className="px-4 py-4 text-center text-base font-semibold text-[#3B3B3B] leading-normal">
-                  Categories
-                </th>
-                <th className="px-4 py-4 text-center text-base font-semibold text-[#3B3B3B] leading-normal">
-                  Price
-                </th>
-                <th className="px-4 py-4 text-center text-base font-semibold text-[#3B3B3B] leading-normal">
-                  Stock
-                </th>
-                <th className="px-4 py-4 text-right text-base font-semibold text-[#3B3B3B] leading-normal">
-                  Action
-                </th>
-              </tr>
-            </thead>
-
-            <tbody>
-              {products?.map((product) => (
-                <tr
-                  key={product._id}
-                  className="border-b last:border-b-0 hover:bg-[#FCFCFD]"
-                >
-                  <td className="px-4 py-4">
-                    <div className="flex items-center gap-3">
-                      <div className="relative h-12 w-12 overflow-hidden rounded-md border bg-white">
-                        <Image
-                          src={product.image}
-                          alt={product.name}
-                          fill
-                          className="object-cover rounded-[4px]"
-                        />
-                      </div>
-                      <p className="text-sm font-medium text-[#242424] leading-normal">
-                        {product.name}
-                      </p>
-                    </div>
-                  </td>
-
-                  <td className="px-4 py-4 text-sm text-center font-medium text-[#242424] leading-normal capitalize">
-                    {product.category.name}
-                  </td>
-
-                  <td className="px-4 py-4 text-sm text-center font-medium text-[#242424] leading-normal">
-                    ${product.price}
-                  </td>
-
-                  <td className="px-4 py-4 text-sm font-medium text-[#242424] leading-normal text-center">
-                    {product.stock}
-                  </td>
-
-                  <td className="px-4 py-4">
-                    <div className="flex items-center justify-end gap-4">
-                      <Link
-                        href={`/product-management/edit-product/${product._id}`}
-                        className="text-[#1E1E1E] transition hover:text-[#12B5D3]"
-                      >
-                        <SquarePen className="h-6 w-6 text-primary" />
-                      </Link>
-
-                      <button
-                        onClick={() => {
-                        setSelectViewProduct(true);
-                        setSelectedProduct(product);
-                      }}
-                        type="button"
-                        className="text-[#1E1E1E] transition hover:text-[#12B5D3]"
-                      >
-                        <Eye className="h-6 w-6 text-primary" />
-                      </button>
-
-                      <button
-                       onClick={() => {
-                        setDeleteModalOpen(true);
-                        setSelectedProductId(product?._id)
-                      }}
-                        type="button"
-                        className="text-[#CE0000] transition hover:text-red-600"
-                      >
-                        <Trash2 className="h-6 w-6" />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-
-              {!products?.length && (
-                <tr>
-                  <td
-                    colSpan={5}
-                    className="px-4 py-10 text-center text-sm text-[#6C757D]"
-                  >
-                    No products found.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-
-          {/* pagination  */}
-        {
-          data && data?.data && data?.data?.pagination && data?.data?.pagination?.totalPages > 1 && (
-            <div className="w-full flex items-center justify-between py-2">
-              <p className="text-base font-normal text-[#68706A] leading-[150%]">
-                Showing {currentPage} to 6 of {data?.data?.pagination?.totalData} results
-              </p>
-              <div>
-                <MireyagsPagination
-                  currentPage={currentPage}
-                  totalPages={data?.data?.pagination?.totalPages}
-                  onPageChange={(page) => setCurrentPage(page)}
-                />
-              </div>
-            </div>
-          )
-        }
+          {tableContent}
 
         {/* delete modal  */}
         <div>

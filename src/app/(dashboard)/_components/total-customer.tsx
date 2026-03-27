@@ -15,10 +15,10 @@ import { ChevronDown } from "lucide-react";
 import { useSession } from "next-auth/react";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import TableSkeletonWrapper from "@/components/shared/TableSkeletonWrapper/TableSkeletonWrapper";
-import ErrorContainer from "@/components/shared/ErrorContainer/ErrorContainer";
 import NotFound from "@/components/shared/NotFound/NotFound";
 import { GrowthApiResponse } from "./revenue-activity-data-type";
+import DashboardChartSkeleton from "./dashboard-chart-skeleton";
+import ManagementTableErrorContainer from "@/components/shared/ManagementTableErrorContainer/ManagementTableErrorContainer";
 
 type CustomerChartItem = {
   month: string;
@@ -97,6 +97,7 @@ export default function TotalCustomersChart() {
     isLoading,
     isError,
     error,
+    refetch,
   } = useQuery<GrowthApiResponse>({
     queryKey: ["total-customers", selectedYear],
     queryFn: async () => {
@@ -112,12 +113,12 @@ export default function TotalCustomersChart() {
       );
 
       if (!res.ok) {
-        throw new Error("Failed to fetch customer chart data");
+        throw new Error("We couldn't load the customer overview right now. Please try again.");
       }
 
       return res.json();
     },
-    enabled: true, // later change to !!token if needed
+    enabled: !!token,
   });
 
   const chartData = useMemo<CustomerChartItem[]>(() => {
@@ -134,15 +135,13 @@ export default function TotalCustomersChart() {
   let content;
 
   if (isLoading) {
-    content = (
-      <div className="pt-4">
-        <TableSkeletonWrapper count={3} />
-      </div>
-    );
+    content = <DashboardChartSkeleton />;
   } else if (isError) {
     content = (
-      <ErrorContainer
+      <ManagementTableErrorContainer
+        title="Unable to load customer overview"
         message={(error as Error)?.message || "Something went wrong"}
+        onRetry={() => refetch()}
       />
     );
   } else if (!chartData.length) {

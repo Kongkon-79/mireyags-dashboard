@@ -22,10 +22,10 @@ import {
   ChartTooltipContent,
 } from "@/components/ui/chart";
 
-import TableSkeletonWrapper from "@/components/shared/TableSkeletonWrapper/TableSkeletonWrapper";
-import ErrorContainer from "@/components/shared/ErrorContainer/ErrorContainer";
 import NotFound from "@/components/shared/NotFound/NotFound";
 import { GrowthApiResponse } from "./revenue-activity-data-type";
+import DashboardChartSkeleton from "./dashboard-chart-skeleton";
+import ManagementTableErrorContainer from "@/components/shared/ManagementTableErrorContainer/ManagementTableErrorContainer";
 
 export const description = "Revenue activity area chart";
 
@@ -91,6 +91,7 @@ export function RevenueActivity() {
     isLoading,
     isError,
     error,
+    refetch,
   } = useQuery<GrowthApiResponse>({
     queryKey: ["revenue-activity", selectedYear],
     queryFn: async () => {
@@ -106,12 +107,12 @@ export function RevenueActivity() {
       );
 
       if (!res.ok) {
-        throw new Error("Failed to fetch revenue activity data");
+        throw new Error("We couldn't load the revenue overview right now. Please try again.");
       }
 
       return res.json();
     },
-    enabled: true, // later change to !!token if needed
+    enabled: !!token,
   });
 
   const chartData = useMemo<RevenueItem[]>(() => {
@@ -128,15 +129,13 @@ export function RevenueActivity() {
   let content;
 
   if (isLoading) {
-    content = (
-      <div className="pt-4">
-        <TableSkeletonWrapper count={3} />
-      </div>
-    );
+    content = <DashboardChartSkeleton />;
   } else if (isError) {
     content = (
-      <ErrorContainer
+      <ManagementTableErrorContainer
+        title="Unable to load revenue overview"
         message={(error as Error)?.message || "Something went wrong"}
+        onRetry={() => refetch()}
       />
     );
   } else if (!chartData.length) {
@@ -263,4 +262,3 @@ export function RevenueActivity() {
 
   return <div className="px-4 pb-6 sm:px-6">{content}</div>;
 }
-

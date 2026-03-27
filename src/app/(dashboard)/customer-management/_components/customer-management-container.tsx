@@ -13,6 +13,8 @@ import {
 import CustomerManagementView from "./customer-management-view";
 import { Eye } from "lucide-react";
 import { useSession } from "next-auth/react";
+import CustomerManagementTableSkeleton from "./customer-management-table-skeleton";
+import ManagementTableErrorContainer from "@/components/shared/ManagementTableErrorContainer/ManagementTableErrorContainer";
 
 import noUser from "../../../../../public/assets/images/no-user.jpeg"
 
@@ -28,7 +30,7 @@ export default function CustomerManagementContainer() {
 
   const [search, setSearch] = useState("");
   const debouncedSearch = useDebounce(search, 500);
-  const { data, isLoading, isError, error } = useQuery<CustomerApiResponse>({
+  const { data, isLoading, isError, error, refetch } = useQuery<CustomerApiResponse>({
     queryKey: ["all-customers", debouncedSearch, currentPage],
     queryFn: async () => {
       const res = await fetch(
@@ -41,6 +43,10 @@ export default function CustomerManagementContainer() {
         },
       );
 
+      if (!res.ok) {
+        throw new Error("We couldn't load the customers right now. Please try again.");
+      }
+
       return res.json();
     },
   });
@@ -49,6 +55,127 @@ export default function CustomerManagementContainer() {
 
   console.log(data?.data);
   console.log(isLoading, isError, error);
+
+  let tableContent;
+
+  if (isLoading) {
+    tableContent = <CustomerManagementTableSkeleton />;
+  } else if (isError) {
+    tableContent = (
+      <ManagementTableErrorContainer
+        title="Unable to load customers"
+        message={(error as Error)?.message || "Something went wrong"}
+        onRetry={() => refetch()}
+      />
+    );
+  } else {
+    tableContent = (
+      <>
+        <table className="min-w-full">
+          <thead className="border-b bg-[#F8F9FA]">
+            <tr>
+              <th className="px-4 py-4 text-left text-base font-semibold text-[#3B3B3B] leading-normal">
+                Customers
+              </th>
+              <th className="px-4 py-4 text-center text-base font-semibold text-[#3B3B3B] leading-normal">
+                Email
+              </th>
+              <th className="px-4 py-4 text-center text-base font-semibold text-[#3B3B3B] leading-normal">
+                Purchase
+              </th>
+              <th className="px-4 py-4 text-center text-base font-semibold text-[#3B3B3B] leading-normal">
+                Amount
+              </th>
+              <th className="px-4 py-4 text-right text-base font-semibold text-[#3B3B3B] leading-normal">
+                Action
+              </th>
+            </tr>
+          </thead>
+
+          <tbody>
+            {customers?.map((customer) => (
+              <tr
+                key={customer.userId}
+                className="border-b last:border-b-0 hover:bg-[#FCFCFD]"
+              >
+                <td className="px-4 py-4">
+                  <div className="flex items-center gap-3">
+                    <div className="relative h-12 w-12 overflow-hidden bg-white">
+                      <Image
+                        src={customer?.image || noUser}
+                        alt={customer?.name}
+                        fill
+                        className="object-cover rounded-[8px]"
+                      />
+                    </div>
+                    <h4 className="text-sm text-center font-medium text-[#242424] leading-normal capitalize">
+                      {customer?.name}
+                    </h4>
+                  </div>
+                </td>
+
+                <td className="px-4 py-4 text-sm text-center font-medium text-[#242424] leading-normal">
+                  {customer?.email}
+                </td>
+
+                <td className="px-4 py-4 text-sm text-center font-medium text-[#242424] leading-normal">
+                  {customer?.totalOrders}
+                </td>
+
+                <td className="px-4 py-4 text-sm text-center font-medium text-[#242424] leading-normal">
+                  $ {customer?.totalSpent}
+                </td>
+
+                <td className="px-4 py-4">
+                  <div className="flex items-center justify-end gap-4">
+                    <button
+                      className="text-[#12B5D3]"
+                      onClick={() => {
+                        setSelectViewCustomer(true);
+                        setSelectedCustomer(customer);
+                      }}
+                    >
+                      <Eye className="w-5 h-5" />
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+
+            {!customers?.length && (
+              <tr>
+                <td
+                  colSpan={5}
+                  className="px-4 py-10 text-center text-sm text-[#6C757D]"
+                >
+                  No Customer found.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+
+        {data &&
+          data?.data &&
+          data?.data?.pagination &&
+          data?.data?.pagination?.totalPages > 1 && (
+            <div className="w-full flex items-center justify-between py-2">
+              <p className="text-base font-normal text-[#68706A] leading-[150%]">
+                Showing {currentPage} to 6 of{" "}
+                {data?.data?.pagination?.totalData} results
+              </p>
+              <div>
+                <MireyagsPagination
+                  currentPage={currentPage}
+                  totalPages={data?.data?.pagination?.totalPages}
+                  onPageChange={(page) => setCurrentPage(page)}
+                />
+              </div>
+            </div>
+          )}
+      </>
+    );
+  }
 
   return (
     <div className="p-4 md:p-6">
@@ -72,108 +199,7 @@ export default function CustomerManagementContainer() {
         </div>
 
         <div className="overflow-x-auto">
-          <table className="min-w-full">
-            <thead className="border-b bg-[#F8F9FA]">
-              <tr>
-                <th className="px-4 py-4 text-left text-base font-semibold text-[#3B3B3B] leading-normal">
-                  Customers
-                </th>
-                <th className="px-4 py-4 text-center text-base font-semibold text-[#3B3B3B] leading-normal">
-                  Email
-                </th>
-                <th className="px-4 py-4 text-center text-base font-semibold text-[#3B3B3B] leading-normal">
-                  Purchase
-                </th>
-                <th className="px-4 py-4 text-center text-base font-semibold text-[#3B3B3B] leading-normal">
-                  Amount
-                </th>
-                <th className="px-4 py-4 text-right text-base font-semibold text-[#3B3B3B] leading-normal">
-                  Action
-                </th>
-              </tr>
-            </thead>
-
-            <tbody>
-              {customers?.map((customer) => (
-                <tr
-                  key={customer.userId}
-                  className="border-b last:border-b-0 hover:bg-[#FCFCFD]"
-                >
-                  <td className="px-4 py-4">
-                    <div className="flex items-center gap-3">
-                      <div className="relative h-12 w-12 overflow-hidden bg-white">
-                        <Image
-                          src={customer?.image || noUser}
-                          alt={customer?.name}
-                          fill
-                          className="object-cover rounded-[8px]"
-                        />
-                      </div>
-                      <h4 className="text-sm text-center font-medium text-[#242424] leading-normal capitalize">{customer?.name}</h4>
-                    </div>
-                  </td>
-
-                  <td className="px-4 py-4 text-sm text-center font-medium text-[#242424] leading-normal">
-                    {customer?.email}
-                  </td>
-
-                   <td className="px-4 py-4 text-sm text-center font-medium text-[#242424] leading-normal">
-                    {customer?.totalOrders}
-                  </td>
-
-                   <td className="px-4 py-4 text-sm text-center font-medium text-[#242424] leading-normal">
-                    $ {customer?.totalSpent}
-                  </td>
-
-                  <td className="px-4 py-4">
-                    <div className="flex items-center justify-end gap-4">
-                      {/* view */}
-                      <button
-                        className="text-[#12B5D3]"
-                        onClick={() => {
-                          setSelectViewCustomer(true);
-                          setSelectedCustomer(customer);
-                        }}
-                      >
-                        <Eye className="w-5 h-5" />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-
-              {!customers?.length && (
-                <tr>
-                  <td
-                    colSpan={5}
-                    className="px-4 py-10 text-center text-sm text-[#6C757D]"
-                  >
-                    No Customer found.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-
-          {/* pagination  */}
-          {data &&
-            data?.data &&
-            data?.data?.pagination &&
-            data?.data?.pagination?.totalPages > 1 && (
-              <div className="w-full flex items-center justify-between py-2">
-                <p className="text-base font-normal text-[#68706A] leading-[150%]">
-                  Showing {currentPage} to 6 of{" "}
-                  {data?.data?.pagination?.totalData} results
-                </p>
-                <div>
-                  <MireyagsPagination
-                    currentPage={currentPage}
-                    totalPages={data?.data?.pagination?.totalPages}
-                    onPageChange={(page) => setCurrentPage(page)}
-                  />
-                </div>
-              </div>
-            )}
+          {tableContent}
 
           {/* Product view modal  */}
           <div>

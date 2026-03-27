@@ -13,6 +13,8 @@ import DeleteModal from "@/components/modals/delete-modal";
 import { useDebounce } from "@/hooks/useDebounce";
 import { Contact, ContactsApiResponse } from "./contact-data-type";
 import ContactManagementView from "./contact-management-view";
+import ContactManagementTableSkeleton from "./contact-management-table-skeleton";
+import ManagementTableErrorContainer from "@/components/shared/ManagementTableErrorContainer/ManagementTableErrorContainer";
 
 export default function ContactUsContainer() {
   const [currentPage, setCurrentPage] = useState(1);
@@ -30,7 +32,7 @@ export default function ContactUsContainer() {
   const { data: session } = useSession();
   const token = (session?.user as { accessToken?: string })?.accessToken;
 
-  const { data, isLoading, isError } = useQuery<ContactsApiResponse>({
+  const { data, isLoading, isError, error, refetch } = useQuery<ContactsApiResponse>({
     queryKey: ["contacts", debouncedSearch, currentPage],
     queryFn: async () => {
       const res = await fetch(
@@ -42,9 +44,13 @@ export default function ContactUsContainer() {
         },
       );
 
+      if (!res.ok) {
+        throw new Error("We couldn't load the contact messages right now. Please try again.");
+      }
+
       return res.json();
     },
-    enabled: !!token
+    enabled: !!token,
   });
 
   console.log(isLoading, isError);
@@ -87,6 +93,121 @@ export default function ContactUsContainer() {
     setDeleteModalOpen(false);
   };
 
+  let tableContent;
+
+  if (isLoading) {
+    tableContent = <ContactManagementTableSkeleton />;
+  } else if (isError) {
+    tableContent = (
+      <ManagementTableErrorContainer
+        title="Unable to load contact messages"
+        message={(error as Error)?.message || "Something went wrong"}
+        onRetry={() => refetch()}
+      />
+    );
+  } else {
+    tableContent = (
+      <>
+        <table className="min-w-full">
+          <thead className="border-b bg-[#F8F9FA]">
+            <tr>
+              <th className="px-4 py-4 text-left text-base font-semibold text-[#3B3B3B]">
+                Name
+              </th>
+              <th className="px-4 py-4 text-left text-base font-semibold text-[#3B3B3B]">
+                Email
+              </th>
+              <th className="px-4 py-4 text-left text-base font-semibold text-[#3B3B3B]">
+                Phone
+              </th>
+              <th className="px-4 py-4 text-left text-base font-semibold text-[#3B3B3B]">
+                Message
+              </th>
+              <th className="px-4 py-4 text-center text-base font-semibold text-[#3B3B3B]">
+                Created Date
+              </th>
+              <th className="px-4 py-4 text-right text-base font-semibold text-[#3B3B3B]">
+                Action
+              </th>
+            </tr>
+          </thead>
+
+          <tbody>
+            {contacts?.map((contact) => (
+              <tr key={contact._id} className="border-b hover:bg-[#FCFCFD]">
+                <td className="px-4 py-4 text-sm font-medium">
+                  {contact.name}
+                </td>
+
+                <td className="px-4 py-4 text-sm">{contact.email}</td>
+
+                <td className="px-4 py-4 text-sm">{contact.phone}</td>
+
+                <td className="px-4 py-4 text-sm max-w-[300px] truncate">
+                  {contact.message}
+                </td>
+
+                <td className="px-4 py-4 text-sm text-center">
+                  {moment(contact.createdAt).format("DD/MM/YYYY")}
+                </td>
+
+                <td className="px-4 py-4">
+                  <div className="flex justify-end gap-4">
+                    <button
+                      className="text-[#12B5D3]"
+                      onClick={() => {
+                        setSelectViewContact(true);
+                        setSelectedContact(contact);
+                      }}
+                    >
+                      <Eye className="w-5 h-5" />
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        setDeleteModalOpen(true);
+                        setSelectedId(contact._id);
+                      }}
+                      className="text-red-600"
+                    >
+                      <Trash2 className="w-5 h-5" />
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+
+            {!contacts?.length && (
+              <tr>
+                <td colSpan={6} className="text-center py-10 text-[#6C757D]">
+                  No contacts found.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+
+        {data &&
+          data?.data &&
+          data?.data?.paginationInfo &&
+          data?.data?.paginationInfo?.totalPages > 1 && (
+            <div className="flex justify-between items-center py-4">
+              <p className="text-[#68706A]">
+                Showing {currentPage} of{" "}
+                {data?.data?.paginationInfo?.totalPages}
+              </p>
+
+              <MireyagsPagination
+                currentPage={currentPage}
+                totalPages={data?.data?.paginationInfo?.totalPages}
+                onPageChange={(page) => setCurrentPage(page)}
+              />
+            </div>
+          )}
+      </>
+    );
+  }
+
   return (
     <div className="p-4 md:p-6">
       <div className="bg-white rounded-[8px] border border-[#E4E4E4] p-6">
@@ -105,106 +226,7 @@ export default function ContactUsContainer() {
         </div>
 
         <div className="overflow-x-auto">
-          <table className="min-w-full">
-            <thead className="border-b bg-[#F8F9FA]">
-              <tr>
-                <th className="px-4 py-4 text-left text-base font-semibold text-[#3B3B3B]">
-                  Name
-                </th>
-                <th className="px-4 py-4 text-left text-base font-semibold text-[#3B3B3B]">
-                  Email
-                </th>
-                <th className="px-4 py-4 text-left text-base font-semibold text-[#3B3B3B]">
-                  Phone
-                </th>
-                <th className="px-4 py-4 text-left text-base font-semibold text-[#3B3B3B]">
-                  Message
-                </th>
-                <th className="px-4 py-4 text-center text-base font-semibold text-[#3B3B3B]">
-                  Created Date
-                </th>
-                <th className="px-4 py-4 text-right text-base font-semibold text-[#3B3B3B]">
-                  Action
-                </th>
-              </tr>
-            </thead>
-
-            <tbody>
-              {contacts?.map((contact) => (
-                <tr key={contact._id} className="border-b hover:bg-[#FCFCFD]">
-                  <td className="px-4 py-4 text-sm font-medium">
-                    {contact.name}
-                  </td>
-
-                  <td className="px-4 py-4 text-sm">{contact.email}</td>
-
-                  <td className="px-4 py-4 text-sm">{contact.phone}</td>
-
-                  <td className="px-4 py-4 text-sm max-w-[300px] truncate">
-                    {contact.message}
-                  </td>
-
-                  <td className="px-4 py-4 text-sm text-center">
-                    {moment(contact.createdAt).format("DD/MM/YYYY")}
-                  </td>
-
-                  <td className="px-4 py-4">
-                    <div className="flex justify-end gap-4">
-                      {/* view */}
-                      <button
-                        className="text-[#12B5D3]"
-                        onClick={() => {
-                          setSelectViewContact(true);
-                          setSelectedContact(contact);
-                        }}
-                      >
-                        <Eye className="w-5 h-5" />
-                      </button>
-
-                      {/* delete */}
-                      <button
-                        onClick={() => {
-                          setDeleteModalOpen(true);
-                          setSelectedId(contact._id);
-                        }}
-                        className="text-red-600"
-                      >
-                        <Trash2 className="w-5 h-5" />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-
-              {!contacts?.length && (
-                <tr>
-                  <td colSpan={6} className="text-center py-10 text-[#6C757D]">
-                    No contacts found.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-
-          {/* pagination */}
-
-          {data &&
-            data?.data &&
-            data?.data?.paginationInfo &&
-            data?.data?.paginationInfo?.totalPages > 1 && (
-              <div className="flex justify-between items-center py-4">
-                <p className="text-[#68706A]">
-                  Showing {currentPage} of{" "}
-                  {data?.data?.paginationInfo?.totalPages}
-                </p>
-
-                <MireyagsPagination
-                  currentPage={currentPage}
-                  totalPages={data?.data?.paginationInfo?.totalPages}
-                  onPageChange={(page) => setCurrentPage(page)}
-                />
-              </div>
-            )}
+          {tableContent}
 
           {/* delete modal */}
 

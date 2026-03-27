@@ -21,6 +21,8 @@ import { toast } from "sonner";
 import noUser from "../../../../../public/assets/images/no-user.jpeg";
 import { Order, OrdersApiResponse } from "./order-management-data-type";
 import OrderManagementView from "./order-management-view";
+import OrderManagementTableSkeleton from "./order-management-table-skeleton";
+import ManagementTableErrorContainer from "@/components/shared/ManagementTableErrorContainer/ManagementTableErrorContainer";
 
 const ORDER_STATUS_OPTIONS = [
   "placed",
@@ -43,7 +45,7 @@ export default function OrderManagementContainer() {
 
   const [search, setSearch] = useState("");
   const debouncedSearch = useDebounce(search, 500);
-  const { data, isLoading, isError, error } = useQuery<OrdersApiResponse>({
+  const { data, isLoading, isError, error, refetch } = useQuery<OrdersApiResponse>({
     queryKey: ["all-orders", debouncedSearch, selectedStatus, currentPage],
     queryFn: async () => {
       const params = new URLSearchParams({
@@ -68,6 +70,10 @@ export default function OrderManagementContainer() {
           },
         },
       );
+
+      if (!res.ok) {
+        throw new Error("We couldn't load the orders right now. Please try again.");
+      }
 
       return res.json();
     },
@@ -189,6 +195,186 @@ export default function OrderManagementContainer() {
   console.log(data?.data);
   console.log(isLoading, isError, error);
 
+  let tableContent;
+
+  if (isLoading) {
+    tableContent = <OrderManagementTableSkeleton />;
+  } else if (isError) {
+    tableContent = (
+      <ManagementTableErrorContainer
+        title="Unable to load orders"
+        message={(error as Error)?.message || "Something went wrong"}
+        onRetry={() => refetch()}
+      />
+    );
+  } else {
+    tableContent = (
+      <>
+        <table className="min-w-full">
+          <thead className="border-b bg-[#F8F9FA]">
+            <tr>
+              <th className="px-4 py-4 text-left text-base font-semibold text-[#3B3B3B] leading-normal">
+                Products
+              </th>
+              <th className="px-4 py-4 text-left text-base font-semibold text-[#3B3B3B] leading-normal">
+                Customers
+              </th>
+              <th className="px-4 py-4 text-center text-base font-semibold text-[#3B3B3B] leading-normal">
+                Payment
+              </th>
+              <th className="px-4 py-4 text-center text-base font-semibold text-[#3B3B3B] leading-normal">
+                Amount
+              </th>
+              <th className="px-4 py-4 text-center text-base font-semibold text-[#3B3B3B] leading-normal">
+                Status
+              </th>
+              <th className="px-4 py-4 text-right text-base font-semibold text-[#3B3B3B] leading-normal">
+                Action
+              </th>
+            </tr>
+          </thead>
+
+          <tbody>
+            {orders?.map((order) => (
+              <tr
+                key={order._id}
+                className="border-b last:border-b-0 hover:bg-[#FCFCFD]"
+              >
+                <td className="px-4 py-4">
+                  <div className="flex items-center gap-3">
+                    {order?.items?.map((info) => {
+                      return (
+                        <div
+                          key={info?.productId}
+                          className="flex items-center gap-3"
+                        >
+                          <div className="relative h-12 w-12">
+                            <Image
+                              src={info?.image}
+                              alt={info?.name}
+                              fill
+                              className="object-cover rounded-[8px]"
+                            />
+                          </div>
+
+                          <h4 className="text-sm font-medium text-[#242424] leading-normal capitalize">
+                            {info?.name}
+                          </h4>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </td>
+
+                <td className="px-4 py-4">
+                  <div className="flex items-center gap-3">
+                    <Image
+                      src={order?.userId?.profileImage || noUser}
+                      alt={order?.userId?.name}
+                      width={200}
+                      height={200}
+                      className="w-12 h-12 object-cover rounded-[8px]"
+                    />
+                    <div>
+                      <h4 className="text-sm text-left font-medium text-[#242424] leading-normal capitalize">
+                        {order?.userId?.name}
+                      </h4>
+                      <p className="text-sm text-left font-normal text-[#525252] leading-normal">
+                        {order?.userId?.email}
+                      </p>
+                    </div>
+                  </div>
+                </td>
+
+                <td className="px-4 py-4 text-sm text-center font-medium text-[#242424] leading-normal capitalize">
+                  {order?.payment?.method}
+                </td>
+
+                <td className="px-4 py-4 text-sm text-center font-medium text-[#242424] leading-normal capitalize">
+                  $ {order?.totalAmount}
+                </td>
+                <td className="px-4 py-4 text-center">
+                  <Select
+                    value={order?.orderStatus}
+                    onValueChange={(value) => {
+                      if (value === order?.orderStatus) return;
+
+                      setUpdatingOrderId(order._id);
+                      updateOrderStatus({
+                        id: order._id,
+                        orderStatus: value,
+                      });
+                    }}
+                    disabled={updatingOrderId === order._id}
+                  >
+                    <SelectTrigger className="mx-auto h-9 w-[120px] border border-[#D0D5DD] bg-white rounded-[12px] text-sm font-medium capitalize">
+                      <SelectValue placeholder="Select status" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-white">
+                      {ORDER_STATUS_OPTIONS?.map((status) => (
+                        <SelectItem
+                          key={status}
+                          value={status}
+                          className="capitalize"
+                        >
+                          {status}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </td>
+
+                <td className="px-4 py-4">
+                  <div className="flex items-center justify-end gap-4">
+                    <button
+                      className="text-[#12B5D3]"
+                      onClick={() => {
+                        setSelectViewOrder(true);
+                        setSelectedOrder(order);
+                      }}
+                    >
+                      <Eye className="w-5 h-5" />
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+
+            {!orders?.length && (
+              <tr>
+                <td
+                  colSpan={5}
+                  className="px-4 py-10 text-center text-sm text-[#6C757D]"
+                >
+                  No Customer found.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+
+        {data &&
+          data?.data &&
+          data?.data?.pagination &&
+          data?.data?.pagination?.totalPages > 1 && (
+            <div className="w-full flex items-center justify-between py-2">
+              <p className="text-base font-normal text-[#68706A] leading-[150%]">
+                Showing {currentPage} to 6 of{" "}
+                {data?.data?.pagination?.totalData} results
+              </p>
+              <div>
+                <MireyagsPagination
+                  currentPage={currentPage}
+                  totalPages={data?.data?.pagination?.totalPages}
+                  onPageChange={(page) => setCurrentPage(page)}
+                />
+              </div>
+            </div>
+          )}
+      </>
+    );
+  }
+
   return (
     <div className="p-4 md:p-6">
       <div className="bg-white rounded-[8px] border border-[#E4E4E4] p-6">
@@ -239,167 +425,7 @@ export default function OrderManagementContainer() {
         </div>
 
         <div className="overflow-x-auto">
-          <table className="min-w-full">
-            <thead className="border-b bg-[#F8F9FA]">
-              <tr>
-                <th className="px-4 py-4 text-left text-base font-semibold text-[#3B3B3B] leading-normal">
-                  Products
-                </th>
-                <th className="px-4 py-4 text-left text-base font-semibold text-[#3B3B3B] leading-normal">
-                  Customers
-                </th>
-                <th className="px-4 py-4 text-center text-base font-semibold text-[#3B3B3B] leading-normal">
-                  Payment
-                </th>
-                <th className="px-4 py-4 text-center text-base font-semibold text-[#3B3B3B] leading-normal">
-                  Amount
-                </th>
-                <th className="px-4 py-4 text-center text-base font-semibold text-[#3B3B3B] leading-normal">
-                  Status
-                </th>
-                <th className="px-4 py-4 text-right text-base font-semibold text-[#3B3B3B] leading-normal">
-                  Action
-                </th>
-              </tr>
-            </thead>
-
-            <tbody>
-              {orders?.map((order) => (
-                <tr
-                  key={order._id}
-                  className="border-b last:border-b-0 hover:bg-[#FCFCFD]"
-                >
-                  <td className="px-4 py-4">
-                    <div className="flex items-center gap-3">
-                      {order?.items?.map((info) => {
-                        return (
-                          <div
-                            key={info?.productId}
-                            className="flex items-center gap-3"
-                          >
-                            <div className="relative h-12 w-12">
-                              <Image
-                                src={info?.image}
-                                alt={info?.name}
-                                fill
-                                className="object-cover rounded-[8px]"
-                              />
-                            </div>
-
-                            <h4 className="text-sm font-medium text-[#242424] leading-normal capitalize">
-                              {info?.name}
-                            </h4>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </td>
-
-                  <td className="px-4 py-4">
-                    <div className="flex items-center gap-3">
-                      <Image
-                        src={order?.userId?.profileImage || noUser}
-                        alt={order?.userId?.name}
-                        width={200}
-                        height={200}
-                        className="w-12 h-12 object-cover rounded-[8px]"
-                      />
-                     <div>
-                       <h4 className="text-sm text-left font-medium text-[#242424] leading-normal capitalize">
-                        {order?.userId?.name}
-                      </h4>
-                      <p className="text-sm text-left font-normal text-[#525252] leading-normal">{order?.userId?.email}</p>
-                     </div>
-                    </div>
-                  </td>
-
-                  <td className="px-4 py-4 text-sm text-center font-medium text-[#242424] leading-normal capitalize">
-                    {order?.payment?.method}
-                  </td>
-
-                  <td className="px-4 py-4 text-sm text-center font-medium text-[#242424] leading-normal capitalize">
-                    $ {order?.totalAmount}
-                  </td>
-                  <td className="px-4 py-4 text-center">
-                    <Select
-                      value={order?.orderStatus}
-                      onValueChange={(value) => {
-                        if (value === order?.orderStatus) return;
-
-                        setUpdatingOrderId(order._id);
-                        updateOrderStatus({
-                          id: order._id,
-                          orderStatus: value,
-                        });
-                      }}
-                      disabled={updatingOrderId === order._id}
-                    >
-                      <SelectTrigger className="mx-auto h-9 w-[120px] border border-[#D0D5DD] bg-white rounded-[12px] text-sm font-medium capitalize">
-                        <SelectValue placeholder="Select status" />
-                      </SelectTrigger>
-                      <SelectContent className="bg-white">
-                        {ORDER_STATUS_OPTIONS?.map((status) => (
-                          <SelectItem
-                            key={status}
-                            value={status}
-                            className="capitalize"
-                          >
-                            {status}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </td>
-
-                  <td className="px-4 py-4">
-                    <div className="flex items-center justify-end gap-4">
-                      {/* view */}
-                      <button
-                        className="text-[#12B5D3]"
-                        onClick={() => {
-                          setSelectViewOrder(true);
-                          setSelectedOrder(order);
-                        }}
-                      >
-                        <Eye className="w-5 h-5" />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-
-              {!orders?.length && (
-                <tr>
-                  <td
-                    colSpan={5}
-                    className="px-4 py-10 text-center text-sm text-[#6C757D]"
-                  >
-                    No Customer found.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-
-          {/* pagination  */}
-          {data &&
-            data?.data &&
-            data?.data?.pagination &&
-            data?.data?.pagination?.totalPages > 1 && (
-              <div className="w-full flex items-center justify-between py-2">
-                <p className="text-base font-normal text-[#68706A] leading-[150%]">
-                  Showing {currentPage} to 6 of{" "}
-                  {data?.data?.pagination?.totalData} results
-                </p>
-                <div>
-                  <MireyagsPagination
-                    currentPage={currentPage}
-                    totalPages={data?.data?.pagination?.totalPages}
-                    onPageChange={(page) => setCurrentPage(page)}
-                  />
-                </div>
-              </div>
-            )}
+          {tableContent}
 
           {/* Product view modal  */}
           <div>
